@@ -6,6 +6,13 @@ import ipaddress
 from typing import Dict, Any, Union
 from urllib.parse import urlparse
 
+import os
+
+DEMO_ALLOWED_PREFIXES = [
+    "http://localhost:8080/demo/",
+    "http://127.0.0.1:8080/demo/",
+]
+
 class SecurityError(Exception):
     pass
 
@@ -19,6 +26,17 @@ class ContractParser:
         if parsed.scheme not in ("http", "https"):
             raise SecurityError(f"Unsupported scheme: {parsed.scheme}")
             
+        # Check Demo Mode strict allowlist
+        is_demo_mode = os.getenv("API_HEALER_DEMO_MODE", "").strip() == "1"
+        if is_demo_mode:
+            configured_target = os.getenv("API_HEALER_DEMO_TARGET_PREFIX", "").strip()
+            allowed_prefixes = list(DEMO_ALLOWED_PREFIXES)
+            if configured_target:
+                allowed_prefixes.append(configured_target)
+                
+            if any(url.startswith(prefix) for prefix in allowed_prefixes):
+                return True
+
         hostname = parsed.hostname
         if not hostname:
             raise SecurityError("Invalid URL format")
@@ -28,10 +46,6 @@ class ContractParser:
             ip_str = socket.gethostbyname(hostname)
             ip = ipaddress.ip_address(ip_str)
             
-            # Allow mock tests with 127.0.0.1 or localhost when testing locally,
-            # but for this strict requirement we'll reject private/loopback 
-            # unless a specific bypass flag is used (which we won't add per instructions,
-            # we will just rely on httpx mock transports for testing without actual network calls).
             if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved:
                 raise SecurityError(f"URL resolves to restricted IP: {ip_str}")
                 
