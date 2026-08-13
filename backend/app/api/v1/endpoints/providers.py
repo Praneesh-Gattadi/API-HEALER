@@ -16,11 +16,14 @@ class RegisterProviderRequest(BaseModel):
     spec_url: str
     changelog_url: Optional[str] = None
     repository_path: str
+    github_repo: Optional[str] = None
 
 @router.post("", response_model=ProviderConfig)
 async def register_provider(req: RegisterProviderRequest, monitor: ProviderMonitor = Depends(get_monitor)):
     try:
-        config = monitor.register_provider(req.name, req.spec_url, req.repository_path, req.changelog_url)
+        config = monitor.register_provider(
+            req.name, req.spec_url, req.repository_path, req.changelog_url, req.github_repo
+        )
         return config
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -36,10 +39,14 @@ async def get_provider(provider_id: str, monitor: ProviderMonitor = Depends(get_
         raise HTTPException(status_code=404, detail="Provider not found")
     return provider
 
+class CheckProviderRequest(BaseModel):
+    override_contract_url: Optional[str] = None
+
 @router.post("/{provider_id}/check", response_model=MigrationDecision)
-async def check_provider_updates(provider_id: str, monitor: ProviderMonitor = Depends(get_monitor)):
+async def check_provider_updates(provider_id: str, req: Optional[CheckProviderRequest] = None, monitor: ProviderMonitor = Depends(get_monitor)):
     try:
-        decision = monitor.check_for_updates(provider_id)
+        override_url = req.override_contract_url if req else None
+        decision = await monitor.check_for_updates(provider_id, override_contract_url=override_url)
         return decision
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

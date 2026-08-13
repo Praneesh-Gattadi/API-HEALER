@@ -1,3 +1,4 @@
+import os
 import hashlib
 import datetime
 import uuid
@@ -13,12 +14,11 @@ class ProviderMonitor:
         self.store = store
 
     def _hash_content(self, content_dict: dict) -> str:
-        # Simple stable hash by sorting keys
         import json
         content_str = json.dumps(content_dict, sort_keys=True)
         return hashlib.sha256(content_str.encode('utf-8')).hexdigest()
 
-    def register_provider(self, name: str, spec_url: str, repository_path: str, changelog_url: str = None) -> ProviderConfig:
+    def register_provider(self, name: str, spec_url: str, repository_path: str, changelog_url: str = None, github_repo: str = None) -> ProviderConfig:
         provider_id = str(uuid.uuid4())
         
         # 1. Fetch initial contract
@@ -49,6 +49,8 @@ class ProviderMonitor:
             spec_url=spec_url,
             changelog_url=changelog_url,
             repository_path=repository_path,
+            github_repo=github_repo,
+            workspace_path=None,
             declared_contract_version=declared_version,
             status=ProviderStatus.INITIALIZED,
             latest_seen_snapshot_id=snapshot_id,
@@ -58,7 +60,7 @@ class ProviderMonitor:
         self.store.save_provider(config)
         return config
 
-    def check_for_updates(self, provider_id: str) -> MigrationDecision:
+    async def check_for_updates(self, provider_id: str) -> MigrationDecision:
         provider = self.store.get_provider(provider_id)
         if not provider:
             raise ValueError(f"Provider {provider_id} not found")
@@ -77,7 +79,6 @@ class ProviderMonitor:
         # 2. Compare hash
         if latest_seen_snapshot and latest_seen_snapshot.spec_hash == new_hash:
             if provider.status in (ProviderStatus.MIGRATION_REQUIRED, ProviderStatus.REVIEW_REQUIRED):
-                # Bug Fix #1: Keep pending state intact!
                 return MigrationDecision(
                     status=provider.status, 
                     reason="A migration is already pending for this API specification."
@@ -106,7 +107,6 @@ class ProviderMonitor:
         # 4. Compare with last PROCESSED snapshot
         old_spec = self.store.get_spec_content(provider_id, provider.last_processed_snapshot_id)
         if not old_spec:
-            # Fallback if processing failed previously, shouldn't happen usually
             old_spec = new_spec
             
         diff_result = compare_openapi_specs(old_spec, new_spec)
@@ -119,10 +119,23 @@ class ProviderMonitor:
             except Exception:
                 pass
                 
-        # 6. Impact Analysis
-        impact = ImpactAnalyzer.analyze(provider.repository_path, diff_result)
+        # 6. Resolve Target Repository Path (Local or GitHub Acquired Workspace)
+        target_repo_path = provider.workspace_path or provider.repository_path
+
+        if provider.github_repo and (not target_repo_path or not os.path.exists(target_repo_path)):
+            from app.services.github_service import GitHubService
+            gh_service = GitHubService()
+            if gh_service.is_configured():
+                acq_result = await gh_service.acquire_repository(provider.github_repo)
+                if acq_result.success:
+                    provider.workspace_path = acq_result.workspace_path
+                    target_repo_path = acq_result.workspace_path
+                    self.store.save_provider(provider)
+
+        # 7. Impact Analysis
+        impact = ImpactAnalyzer.analyze(target_repo_path, diff_result)
         
-        # 7. Decision Engine
+        # 8. Decision Engine
         decision = DecisionEngine.evaluate(diff_result, impact, changelog_content)
         
         provider.status = decision.status
@@ -135,6 +148,11 @@ class ProviderMonitor:
             snapshot.status = SnapshotStatus.REVIEW_REQUIRED
             self.store.save_snapshot(snapshot, new_spec)
             provider.pending_snapshot_id = snapshot_id
+        elif decision.status == ProviderStatus.NO_MIGRATION_REQUIRED:
+            if provider.workspace_path:
+                from app.services.github_service import GitHubService
+                GitHubService.cleanup_workspace(provider.workspace_path)
+                provider.workspace_path = None
             
         self.store.save_provider(provider)
         return decision
@@ -143,13 +161,16 @@ class ProviderMonitor:
         provider = self.store.get_provider(provider_id)
         if not provider or not provider.pending_snapshot_id:
             return False
+
+        if provider.workspace_path:
+            from app.services.github_service import GitHubService
+            GitHubService.cleanup_workspace(provider.workspace_path)
+            provider.workspace_path = None
             
         # Transition pending -> processed
         pending_snap = self.store.get_snapshot(provider_id, provider.pending_snapshot_id)
         if pending_snap:
             pending_snap.status = SnapshotStatus.PROCESSED
-            # We don't have spec_content in memory, but save_snapshot overwrites it, 
-            # so we just update the JSON file directly or add a method to store
             self.store._update_snapshot_metadata_only(pending_snap)
             
         provider.last_processed_snapshot_id = provider.pending_snapshot_id

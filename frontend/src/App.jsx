@@ -164,6 +164,8 @@ function App() {
               isLoading={isLoading}
               error={error}
               repoRoot={repoRoot}
+              providerId={activeProviderId}
+              provider={providers.find(p => p.id === activeProviderId)}
               onGeneratePlan={handleGeneratePlan}
               onDryRun={handleDryRun}
               onApply={handleApply}

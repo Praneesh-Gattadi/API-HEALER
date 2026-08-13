@@ -43,6 +43,8 @@ class ProviderConfig(BaseModel):
     spec_url: str
     changelog_url: Optional[str] = None
     repository_path: str
+    github_repo: Optional[str] = None
+    workspace_path: Optional[str] = None
     declared_contract_version: Optional[str] = None
     status: ProviderStatus = ProviderStatus.INITIALIZED
     latest_seen_snapshot_id: Optional[str] = None
@@ -53,4 +55,4 @@ class MigrationDecision(BaseModel):
     status: ProviderStatus
     reason: str
     impact_analysis: Optional[ImpactAnalysis] = None
-    diff_result: Optional[Any] = None  # Will be DiffResult but keeping Any to avoid circular dependency if not needed
+    diff_result: Optional[Any] = None

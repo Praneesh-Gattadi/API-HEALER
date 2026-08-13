@@ -11,6 +11,7 @@ const ProviderDashboard = ({ onMigrationRequired }) => {
   const [name, setName] = useState('');
   const [specUrl, setSpecUrl] = useState('');
   const [repoPath, setRepoPath] = useState('');
+  const [githubRepo, setGithubRepo] = useState('');
 
   const loadProviders = async () => {
     try {
@@ -30,11 +31,12 @@ const ProviderDashboard = ({ onMigrationRequired }) => {
     setIsLoading(true);
     setError(null);
     try {
-      await registerProvider(name, specUrl, repoPath);
+      await registerProvider(name, specUrl, repoPath, null, githubRepo || null);
       await loadProviders();
       setName('');
       setSpecUrl('');
       setRepoPath('');
+      setGithubRepo('');
     } catch (err) {
       setError(err.response?.data?.detail || err.message);
     } finally {
@@ -45,7 +47,8 @@ const ProviderDashboard = ({ onMigrationRequired }) => {
   const fillDemoPreset = (type) => {
     setName(type === 'A' ? 'Demo API (Affected Consumer)' : 'Demo API (Unused Breaking)');
     setSpecUrl('http://localhost:8080/demo/v1.json');
-    setRepoPath(window.location.origin.includes('localhost') ? 'demo/consumer_app' : 'demo/consumer_app');
+    setRepoPath('demo/consumer_app');
+    setGithubRepo('');
   };
 
   const handleCheck = async (provider) => {
@@ -118,9 +121,15 @@ const ProviderDashboard = ({ onMigrationRequired }) => {
               <input type="url" className="input-field" value={specUrl} onChange={e => setSpecUrl(e.target.value)} required placeholder="http://localhost:8080/demo/v1.json" />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Local Consumer Repository Path</label>
-            <input type="text" className="input-field" value={repoPath} onChange={e => setRepoPath(e.target.value)} required placeholder="demo/consumer_app" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Local Consumer Repository Path</label>
+              <input type="text" className="input-field" value={repoPath} onChange={e => setRepoPath(e.target.value)} required placeholder="demo/consumer_app" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">GitHub Repository (Optional owner/repo)</label>
+              <input type="text" className="input-field" value={githubRepo} onChange={e => setGithubRepo(e.target.value)} placeholder="e.g. Praneesh-Gattadi/API-HEALER" />
+            </div>
           </div>
           <button type="submit" disabled={isLoading} className="btn-primary w-full py-2.5 font-medium">
             {isLoading ? 'Registering...' : 'Register Monitored Provider'}
@@ -152,6 +161,9 @@ const ProviderDashboard = ({ onMigrationRequired }) => {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-xs text-slate-400 font-mono">
                         <p><span className="text-slate-500">Spec:</span> {p.spec_url}</p>
                         <p><span className="text-slate-500">Repo:</span> {p.repository_path}</p>
+                        {p.github_repo && (
+                          <p><span className="text-slate-500">GitHub:</span> <span className="text-indigo-300">{p.github_repo}</span></p>
+                        )}
                         <p><span className="text-slate-500">Baseline ID:</span> {p.last_processed_snapshot_id || 'None'}</p>
                         {p.pending_snapshot_id && (
                           <p><span className="text-amber-400">Pending Migration ID:</span> {p.pending_snapshot_id}</p>

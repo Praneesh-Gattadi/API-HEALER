@@ -12,6 +12,8 @@ const MigrationsView = ({
   isLoading,
   error,
   repoRoot,
+  providerId,
+  provider,
   onGeneratePlan,
   onDryRun,
   onApply,
@@ -74,7 +76,13 @@ const MigrationsView = ({
       {(step === 'DRY_RUN' || step === 'APPLIED') && (
         <div className="space-y-6">
           <TestValidationSection transformResult={transformResult} />
-          <PullRequestSection transformResult={transformResult} plan={plan} repoRoot={repoRoot} />
+          <PullRequestSection
+            transformResult={transformResult}
+            plan={plan}
+            repoRoot={repoRoot}
+            providerId={providerId}
+            provider={provider}
+          />
         </div>
       )}
 

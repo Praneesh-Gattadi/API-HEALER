@@ -45,12 +45,13 @@ export const applyTransformation = async (migrationPlan, repositoryRoot, dryRun 
   return response.data;
 };
 
-export const registerProvider = async (name, specUrl, repositoryPath, changelogUrl = null) => {
+export const registerProvider = async (name, specUrl, repositoryPath, changelogUrl = null, githubRepo = null) => {
   const response = await api.post('/providers', {
     name,
     spec_url: specUrl,
     repository_path: repositoryPath,
     changelog_url: changelogUrl,
+    github_repo: githubRepo,
   });
   return response.data;
 };
@@ -67,5 +68,18 @@ export const listProviders = async () => {
 
 export const getSnapshotSpec = async (providerId, snapshotId) => {
   const response = await api.get(`/providers/${providerId}/snapshots/${snapshotId}`);
+  return response.data;
+};
+
+export const createPullRequest = async ({ providerId, repositoryPath, githubRepo, baseBranch = 'main', title, body, filesToCommit }) => {
+  const response = await api.post('/github/pull-request', {
+    provider_id: providerId,
+    repository_path: repositoryPath,
+    github_repo: githubRepo,
+    base_branch: baseBranch,
+    title,
+    body,
+    files_to_commit: filesToCommit,
+  });
   return response.data;
 };

@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, HTTPException
 from app.models.transformation_result import TransformRequest, TransformationResult
 from app.services.code_transformer import apply_transform
@@ -9,9 +10,16 @@ router = APIRouter()
 @router.post("", response_model=TransformationResult)
 def execute_transform(request: TransformRequest):
     try:
+        target_root = request.repository_root
+        if request.provider_id:
+            store = ProviderStore()
+            provider = store.get_provider(request.provider_id)
+            if provider and provider.workspace_path and os.path.exists(provider.workspace_path):
+                target_root = provider.workspace_path
+
         result = apply_transform(
             request.migration_plan,
-            request.repository_root,
+            target_root,
             request.dry_run
         )
         
