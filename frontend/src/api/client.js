@@ -1,11 +1,31 @@
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api/v1',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000,
 });
+
+export const checkBackendHealth = async () => {
+  try {
+    const response = await api.get('/providers');
+    return response.status === 200;
+  } catch (err) {
+    return false;
+  }
+};
+
+export const calculateDiff = async (oldSpec, newSpec) => {
+  const response = await api.post('/diff/diff', {
+    old_spec: oldSpec,
+    new_spec: newSpec,
+  });
+  return response.data;
+};
 
 export const generateMigrationPlan = async (oldSpec, newSpec) => {
   const response = await api.post('/migration-plan', {
@@ -20,7 +40,7 @@ export const applyTransformation = async (migrationPlan, repositoryRoot, dryRun 
     migration_plan: migrationPlan,
     repository_root: repositoryRoot,
     dry_run: dryRun,
-    provider_id: providerId
+    provider_id: providerId,
   });
   return response.data;
 };
@@ -30,7 +50,7 @@ export const registerProvider = async (name, specUrl, repositoryPath, changelogU
     name,
     spec_url: specUrl,
     repository_path: repositoryPath,
-    changelog_url: changelogUrl
+    changelog_url: changelogUrl,
   });
   return response.data;
 };
