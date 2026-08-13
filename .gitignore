@@ -35,3 +35,4 @@ build/
 # Misc
 .DS_Store
 *.egg-info/
+.api_healer_data/

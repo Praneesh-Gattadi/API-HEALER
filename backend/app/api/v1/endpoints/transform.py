@@ -1,13 +1,27 @@
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, HTTPException
 from app.models.transformation_result import TransformRequest, TransformationResult
 from app.services.code_transformer import apply_transform
+from app.services.provider_store import ProviderStore
+from app.services.provider_monitor import ProviderMonitor
 
 router = APIRouter()
 
-@router.post("/transform", response_model=TransformationResult)
-async def execute_transform(request: TransformRequest = Body(...)) -> TransformationResult:
-    """
-    Execute a code transformation deterministically based on a MigrationPlan.
-    Defaults to dry_run=True.
-    """
-    return apply_transform(request.migration_plan, request.repository_root, request.dry_run)
+@router.post("", response_model=TransformationResult)
+def execute_transform(request: TransformRequest):
+    try:
+        result = apply_transform(
+            request.migration_plan,
+            request.repository_root,
+            request.dry_run
+        )
+        
+        # Verify and complete provider migration if applicable
+        if request.provider_id and not request.dry_run and result.success:
+            monitor = ProviderMonitor(ProviderStore())
+            monitor.complete_migration(request.provider_id)
+            
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Transformation error: {str(e)}")

@@ -24,3 +24,4 @@ class TransformRequest(BaseModel):
     migration_plan: MigrationPlan
     repository_root: str
     dry_run: bool = True
+    provider_id: Optional[str] = None
