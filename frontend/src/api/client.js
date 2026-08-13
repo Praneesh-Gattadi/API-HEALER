@@ -28,7 +28,7 @@ export const calculateDiff = async (oldSpec, newSpec) => {
 };
 
 export const generateMigrationPlan = async (oldSpec, newSpec) => {
-  const response = await api.post('/migration-plan', {
+  const response = await api.post('/migration-plan/migration-plan', {
     old_spec: oldSpec,
     new_spec: newSpec,
   });
